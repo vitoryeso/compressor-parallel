@@ -9,7 +9,7 @@ Parallel implementation of some compressing algorithms
 ```bash
     sudo apt-get update -y
     sudo apt-get install build-essentials python3 -y
-    git clone <repo>
+    git clone https://github.com/vitoryeso/compressor-parallel.git
     make all
 
     pip install numpy
