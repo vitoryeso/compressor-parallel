@@ -21,8 +21,6 @@ int main(int argc, char** argv)
     while (1)
     {
         static struct option long_options[] = {
-            {"compress",   no_argument,       0, 'c'},
-            {"decompress", no_argument,       0, 'd'},
             {"algorithm",  required_argument, 0, 'a'},
             {"input",      required_argument, 0, 'i'},
             {"output",     required_argument, 0, 'o'},
@@ -37,14 +35,6 @@ int main(int argc, char** argv)
 
         switch (c)
         {
-            case 'c':
-                //Compress
-                compress = 1;
-                break;
-            case 'd':
-                //Decompress
-                compress = 0;
-                break;
             case 'a':
                 //Algorithm
                 if (algorithm)
@@ -86,14 +76,11 @@ int main(int argc, char** argv)
                 //Help
                 std::cout << "\n"
                              "Usage: compressor "
-                             "(-c | --compress | -d | --decompress) "
                              "(-a <algorithm> | --algorithm <algorithm>) "
                              "(-i <file> | --input <file>) "
                              "(-o <file> | --output <file>)\n"
                              "\n"
                              "Options:\n"
-                             "-c, --compress                            Compress file\n"
-                             "-d, --decompress                          Decompress file\n"
                              "-a <algorithm>, --algorithm <algorithm>   Algorithm to use\n"
                              "-i <file>, --input <file>                 Input file\n"
                              "-o <file>, --output <file>                Output file\n"
@@ -113,14 +100,6 @@ int main(int argc, char** argv)
             default:
                 abort();
         }
-    }
-
-    if (compress == -1)
-    {
-        //Missing operation
-        std::cout << "Missing argument: (-c | --compress | -d | --decompress)\n";
-        delete algorithm;
-        return 1;
     }
 
     if (!algorithm)
@@ -146,10 +125,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    if (compress)
-        algorithm->compress_file(file_in, file_out);
-    else
-        algorithm->decompress_file(file_in, file_out);
+    algorithm->decompress(file_in, file_out);
 
     delete algorithm;
 
