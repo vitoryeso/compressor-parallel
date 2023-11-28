@@ -28,7 +28,7 @@ int main(int argc, char** argv)
             {0,            0,                 0, 0  }
         };
 
-        c = getopt_long(argc, argv, "cda:i:o:h", long_options, NULL);
+        c = getopt_long(argc, argv, "a:i:o:h", long_options, NULL);
 
         if (c == -1)
             break;
