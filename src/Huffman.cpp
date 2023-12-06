@@ -9,6 +9,7 @@
 #include <iostream>
 #include <queue>
 #include <string>
+#include <omp.h>
 
 void Huffman::count_occurrences(std::string file)
 {
@@ -242,19 +243,27 @@ void Huffman::compress(std::string file_in, std::string file_out)
     uint8_t dictionary_size = codebook->size & 0xFF;
 
     original_file_size = 0;
+    #pragma omp parallel for reduction(+:original_file_size)
     for (uint16_t i = 0; i < 256; i++)
     {
-        if (!nodes[i]->occurrences)
-            break;
+        if (i == 0)
+        {
+            int num_threads = omp_get_num_threads();
+            std::cout << "Number of threads = " << num_threads << std::endl;
+        }
 
-        original_file_size += nodes[i]->occurrences;
+        if (nodes[i]->occurrences)
+            original_file_size += nodes[i]->occurrences;
     }
 
+    // Count number of symbols with codeword length
     uint8_t* number_of_symbols_with_codeword_length = new uint8_t[32];
     for (uint8_t i = 0; i < 32; i++)
         number_of_symbols_with_codeword_length[i] = 0;
+    #pragma omp parallel for // openmp
     for (uint16_t i = 0; i < codebook->size; i++)
         number_of_symbols_with_codeword_length[codebook->codes_length[i] - 1]++;
+
 
     uint8_t number_of_symbols_with_codeword_length_highest = 31;
     for (int8_t i = 31; i >= 0; i--)
@@ -292,8 +301,15 @@ void Huffman::compress(std::string file_in, std::string file_out)
         fs_in.read(buffer, BUFFER_SIZE);
         int32_t bytes_read = fs_in.gcount();
 
+        uint8_t* data_out = new uint8_t[bytes_read];
+        int8_t* data_out_position = new int8_t[bytes_read];
+
+        #pragma omp parallel for
         for (int32_t i = 0; i < bytes_read; i++)
         {
+            data_out[i] = 0;
+            data_out_position[i] = 7;
+
             //For each byte in buffer, run through codebook
             for (uint16_t j = 0; j < codebook->size; j++)
             {
@@ -303,18 +319,22 @@ void Huffman::compress(std::string file_in, std::string file_out)
                 {
                     for (int8_t k = codebook->codes_length[j] - 1; k >= 0; k--)
                     {
-                        data_out |= (((codebook->codes[j] >> (k)) & 0x01) << (data_out_position--));
-                        if (data_out_position < 0)
+                        data_out[i] |= (((codebook->codes[j] >> (k)) & 0x01) << (data_out_position[i]--));
+                        if (data_out_position[i] < 0)
                         {
-                            fs_out << data_out;
-                            data_out = 0;
-                            data_out_position = 7;
+                            #pragma omp critical
+                            {
+                                fs_out << data_out[i];
+                            }
+                            data_out[i] = 0;
+                            data_out_position[i] = 7;
                         }
                     }
                     break;
                 }
             }
         }
+
     }
 
     //If there is any leftover data, write it to the output file
@@ -375,20 +395,20 @@ void Huffman::decompress(std::string file_in, std::string file_out)
     delete[] buffer;
 }
 
-void Huffman::compress_file(std::string file_in, std::string file_out)
+void Huffman::compress_file(std::string filename_in, std::string filename_out)
 {
-    count_occurrences(file_in);
+    count_occurrences(filename_in);
     sort_nodes();
     construct_tree();
     create_codebook();
     create_canonical_codebook();
-    compress(file_in, file_out);
+    compress(filename_in, filename_out);
 }
 
-void Huffman::decompress_file(std::string file_in, std::string file_out)
+void Huffman::decompress_file(std::string filename_in, std::string filename_out)
 {
-    read_canonical_codebook(file_in);
-    decompress(file_in, file_out);
+    read_canonical_codebook(filename_in);
+    decompress(filename_in, filename_out);
 }
 
 Huffman::Huffman()

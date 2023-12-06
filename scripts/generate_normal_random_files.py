@@ -1,7 +1,8 @@
 import numpy as np
 
 # Tamanhos dos arquivos em bytes
-file_sizes = [250 * 1024**2, 500 * 1024**2, 1024**3, 2 * 1024**3, 4 * 1024**3]
+file_sizes = [500 * 1024**2, 1024**3, 2 * 1024**3, 4 * 1024**3, 8 * 1024**3]
+#[ 1/4 * 2gb , 1/2 * 2gb, 2gb, 4gb, 8gb]
 
 # Diretório onde os arquivos serão salvos
 output_directory = "./test_files/"
