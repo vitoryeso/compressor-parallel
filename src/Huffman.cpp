@@ -10,6 +10,7 @@
 #include <queue>
 #include <string>
 #include <omp.h>
+#include <cstring>
 
 void Huffman::count_occurrences(std::string file)
 {
@@ -397,12 +398,23 @@ void Huffman::decompress(std::string file_in, std::string file_out)
 
 void Huffman::compress_file(std::string filename_in, std::string filename_out)
 {
+    char* measure_time = getenv("MEASURE");
+    double start(0), end(0);
+    if (measure_time != nullptr && strcmp(measure_time, "1") == 0) {
+        start = omp_get_wtime();
+    }
+
     count_occurrences(filename_in);
     sort_nodes();
     construct_tree();
     create_codebook();
     create_canonical_codebook();
     compress(filename_in, filename_out);
+
+    if (measure_time != nullptr && strcmp(measure_time, "1") == 0) {
+        end = omp_get_wtime();
+        printf("Tempo gasto: %f segundos\n", end - start);
+    }
 }
 
 void Huffman::decompress_file(std::string filename_in, std::string filename_out)
