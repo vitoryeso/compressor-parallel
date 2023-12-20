@@ -233,12 +233,31 @@ void Huffman::read_canonical_codebook(std::string file)
     delete[] number_of_symbols_with_codeword_length;
 }
 
-void Huffman::compress(std::string file_in, std::string file_out)
-{
-    //Prepare input and output streams
+void Huffman::compress(std::string file_in, std::string file_out) {
+    // Prepare input and output streams
     std::ifstream fs_in(file_in, std::ifstream::binary);
-    char* buffer = new char[BUFFER_SIZE];
     std::ofstream fs_out(file_out, std::ofstream::binary);
+
+    // Check if files are opened correctly
+    if (!fs_in.is_open() || !fs_out.is_open()) {
+        std::cerr << "Erro ao abrir arquivos." << std::endl;
+        return;
+    }
+
+    // Get the size of the file
+    fs_in.seekg(0, std::ios::end);
+    size_t fileSize = fs_in.tellg();
+    fs_in.seekg(0, std::ios::beg);
+
+    // Allocate memory for the entire file
+    char* buffer = (char*)malloc(fileSize);
+    if (buffer == NULL) {
+        std::cerr << "Falha na alocação de memória." << std::endl;
+        return;
+    }
+
+    // Read the entire file into memory
+    fs_in.read(buffer, fileSize);
 
     //Prepare file header
     uint8_t dictionary_size = codebook->size & 0xFF;
@@ -293,57 +312,64 @@ void Huffman::compress(std::string file_in, std::string file_out)
     for (uint16_t i = 0; i < codebook->size; i++)
         fs_out << codebook->codes_value[i];
 
-    //Compress the input file
-    uint8_t data_out = 0;
-    int8_t data_out_position = 7;
+    printf("Tentando alocar o outputbuffer\n");
 
-    while (fs_in.good())
+    // Allocate output buffer
+    uint8_t* outputBuffer = (uint8_t*)malloc(fileSize);
+    if (outputBuffer == NULL) {
+        std::cerr << "Falha na alocação de memória para outputBuffer." << std::endl;
+        free(buffer);
+        return;
+    }
+
+    // Initialize outputBuffer to 0
+    memset(outputBuffer, 0, fileSize);
+
+    printf("output buffer inicializado com zeros \n");
+
+    printf("file_size: %ld\n", fileSize);
+    printf("omp max threads: %d\n", omp_get_max_threads());
+    // Process the file in parallel
+    #pragma omp parallel
     {
-        fs_in.read(buffer, BUFFER_SIZE);
-        int32_t bytes_read = fs_in.gcount();
+        int threadId = omp_get_thread_num();
+        size_t segmentSize = fileSize / omp_get_max_threads();
+        size_t start = threadId * segmentSize;
+        size_t end = (threadId == omp_get_max_threads() - 1) ? fileSize : start + segmentSize;
 
-        uint8_t* data_out = new uint8_t[bytes_read];
-        int8_t* data_out_position = new int8_t[bytes_read];
+        for (size_t i = start; i < end; i++) {
+            uint8_t data_out = 0;
+            int8_t data_out_position = 7;
 
-        #pragma omp parallel for
-        for (int32_t i = 0; i < bytes_read; i++)
-        {
-            data_out[i] = 0;
-            data_out_position[i] = 7;
-
-            //For each byte in buffer, run through codebook
-            for (uint16_t j = 0; j < codebook->size; j++)
-            {
-                //If current byte from buffer matches this codebook record, write codeword to the
-                //output file
-                if (codebook->codes_value[j] == (uint8_t)buffer[i])
-                {
-                    for (int8_t k = codebook->codes_length[j] - 1; k >= 0; k--)
-                    {
-                        data_out[i] |= (((codebook->codes[j] >> (k)) & 0x01) << (data_out_position[i]--));
-                        if (data_out_position[i] < 0)
-                        {
-                            #pragma omp critical
-                            {
-                                fs_out << data_out[i];
-                            }
-                            data_out[i] = 0;
-                            data_out_position[i] = 7;
+            // For each byte in buffer, run through codebook
+            for (uint16_t j = 0; j < codebook->size; j++) {
+                // If current byte from buffer matches this codebook record, write codeword
+                if (codebook->codes_value[j] == (uint8_t)buffer[i]) {
+                    for (int8_t k = codebook->codes_length[j] - 1; k >= 0; k--) {
+                        data_out |= (((codebook->codes[j] >> k) & 0x01) << data_out_position--);
+                        if (data_out_position < 0) {
+                            outputBuffer[i] = data_out; // Escreva no buffer de saída ao invés de fs_out
+                            data_out = 0;
+                            data_out_position = 7;
                         }
                     }
                     break;
                 }
             }
-        }
 
+        }
     }
 
-    //If there is any leftover data, write it to the output file
-    if (data_out_position != 7)
-        fs_out << data_out;
+    // Write outputBuffer to the output file
+    for (size_t i = 0; i < fileSize; i++) {
+        if (outputBuffer[i] != 0) {
+            fs_out.write(reinterpret_cast<const char*>(&outputBuffer[i]), sizeof(uint8_t));
+        }
+    }
 
-    delete[] buffer;
-    delete[] number_of_symbols_with_codeword_length;
+    // Clean up
+    free(buffer);
+    free(outputBuffer);
 }
 
 void Huffman::decompress(std::string file_in, std::string file_out)
